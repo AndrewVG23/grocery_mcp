@@ -11,6 +11,17 @@ _pool: asyncpg.Pool | None = None
 _schema_ready = False
 
 
+def _decode_payload(value: Any) -> dict[str, Any] | None:
+    """Normalize asyncpg JSONB values across codec configurations."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = json.loads(value)
+    if not isinstance(value, dict):
+        raise TypeError(f"Expected a JSON object, got {type(value).__name__}")
+    return dict(value)
+
+
 def database_url() -> str | None:
     value = os.environ.get("DATABASE_URL", "").strip()
     return value or None
@@ -81,7 +92,7 @@ async def get_state(kind: str, key: str) -> dict[str, Any] | None:
         kind,
         key,
     )
-    return dict(value) if value is not None else None
+    return _decode_payload(value)
 
 
 async def delete_state(kind: str, key: str) -> None:
@@ -117,7 +128,7 @@ async def load_handoff(handoff_id: str) -> dict[str, Any] | None:
         "SELECT payload FROM grocery_handoffs WHERE id = $1::uuid",
         handoff_id,
     )
-    return dict(value) if value is not None else None
+    return _decode_payload(value)
 
 
 async def save_template(template_id: str, payload: dict[str, Any]) -> None:
@@ -143,7 +154,7 @@ async def load_template(template_id: str) -> dict[str, Any] | None:
         "SELECT payload FROM grocery_templates WHERE id = $1::uuid",
         template_id,
     )
-    return dict(value) if value is not None else None
+    return _decode_payload(value)
 
 
 async def list_templates() -> list[dict[str, Any]]:
@@ -153,7 +164,7 @@ async def list_templates() -> list[dict[str, Any]]:
     values = await connection_pool.fetch(
         "SELECT payload FROM grocery_templates ORDER BY created_at DESC LIMIT 100"
     )
-    return [dict(row["payload"]) for row in values]
+    return [_decode_payload(row["payload"]) for row in values]
 
 
 async def close_pool() -> None:
