@@ -13,6 +13,7 @@ from grocery_mcp.providers.base import (
     CatalogProduct,
     ProviderError,
     RetailerProvider,
+    rank_products,
     score_product,
 )
 
@@ -113,8 +114,12 @@ class KettleRangeProvider(RetailerProvider):
         if selected not in KETTLE_LOCATIONS:
             raise ProviderError(f"Unknown Kettle Range location: {selected}")
 
-        products = [_catalog_product(raw) for raw in await self._search_raw(item.name, selected, limit)]
-        ranked = sorted(products, key=lambda product: score_product(item, product), reverse=True)
+        fetch_limit = min(max(limit * 4, 20), 50)
+        products = [
+            _catalog_product(raw)
+            for raw in await self._search_raw(item.name, selected, fetch_limit)
+        ]
+        ranked = rank_products(item, products, limit)
         return [
             ProductMatch(
                 retailer=self.retailer,
@@ -130,5 +135,5 @@ class KettleRangeProvider(RetailerProvider):
                 image_url=product.image_url,
                 confidence=score_product(item, product),
             )
-            for product in ranked[:limit]
+            for product in ranked
         ]

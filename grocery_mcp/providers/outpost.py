@@ -12,6 +12,7 @@ from grocery_mcp.providers.base import (
     CatalogProduct,
     ProviderError,
     RetailerProvider,
+    rank_products,
     score_product,
 )
 
@@ -127,11 +128,12 @@ class OutpostProvider(RetailerProvider):
         if location is None:
             raise ProviderError(f"Unknown Outpost location: {selected}")
 
+        fetch_limit = min(max(limit * 4, 20), 50)
         products = [
             _catalog_product(raw, location)
-            for raw in await self._search_raw(item.name, selected, limit)
+            for raw in await self._search_raw(item.name, selected, fetch_limit)
         ]
-        ranked = sorted(products, key=lambda product: score_product(item, product), reverse=True)
+        ranked = rank_products(item, products, limit)
         return [
             ProductMatch(
                 retailer=self.retailer,
@@ -147,5 +149,5 @@ class OutpostProvider(RetailerProvider):
                 image_url=product.image_url,
                 confidence=score_product(item, product),
             )
-            for product in ranked[:limit]
+            for product in ranked
         ]

@@ -4,14 +4,24 @@ from __future__ import annotations
 from collections import OrderedDict
 from uuid import uuid4
 
-from grocery_mcp.database import load_handoff, save_handoff
+from grocery_mcp.database import (
+    list_templates as load_templates,
+)
+from grocery_mcp.database import (
+    load_handoff,
+    load_template,
+    save_handoff,
+    save_template,
+)
 from grocery_mcp.models import (
     GroceryHandoff,
     GroceryItem,
+    GroceryOrderTemplate,
     HandoffRequest,
     ItemResult,
     RetailerId,
     RetailerLocation,
+    TemplateRequest,
 )
 from grocery_mcp.providers import KettleRangeProvider, OutpostProvider
 from grocery_mcp.providers.base import ProviderError, RetailerProvider
@@ -49,6 +59,7 @@ class ShoppingListService:
             RetailerId.OUTPOST: OutpostProvider(),
         }
         self._handoffs: dict[str, GroceryHandoff] = {}
+        self._templates: dict[str, GroceryOrderTemplate] = {}
 
     async def retailers(self) -> list[RetailerLocation]:
         locations: list[RetailerLocation] = []
@@ -141,6 +152,59 @@ class ShoppingListService:
         handoff = GroceryHandoff.model_validate(payload)
         self._handoffs[handoff_id] = handoff
         return handoff
+
+    async def create_template(self, request: TemplateRequest) -> GroceryOrderTemplate:
+        provider = self.providers.get(request.retailer)
+        if provider is None:
+            raise ProviderError(f"Unsupported retailer: {request.retailer}")
+        locations = await provider.locations()
+        if request.location_id and not any(
+            location.id == request.location_id for location in locations
+        ):
+            raise ProviderError(
+                f"Unknown {request.retailer.value} location: {request.location_id}"
+            )
+
+        template = GroceryOrderTemplate(
+            id=str(uuid4()),
+            name=request.name,
+            retailer=request.retailer,
+            items=normalize_items(request.items),
+            location_id=request.location_id,
+            postal_code=request.postal_code,
+        )
+        self._templates[template.id] = template
+        await save_template(template.id, template.model_dump(mode="json"))
+        return template
+
+    async def get_template(self, template_id: str) -> GroceryOrderTemplate | None:
+        template = self._templates.get(template_id)
+        if template is not None:
+            return template
+        payload = await load_template(template_id)
+        if payload is None:
+            return None
+        template = GroceryOrderTemplate.model_validate(payload)
+        self._templates[template_id] = template
+        return template
+
+    async def list_templates(self) -> list[GroceryOrderTemplate]:
+        persisted = [
+            GroceryOrderTemplate.model_validate(payload)
+            for payload in await load_templates()
+        ]
+        combined = {template.id: template for template in persisted}
+        combined.update(self._templates)
+        return sorted(combined.values(), key=lambda template: template.created_at, reverse=True)
+
+    async def create_handoff_from_template(
+        self,
+        template_id: str,
+    ) -> GroceryHandoff | None:
+        template = await self.get_template(template_id)
+        if template is None:
+            return None
+        return await self.create_handoff(template.handoff_request())
 
 
 service = ShoppingListService()

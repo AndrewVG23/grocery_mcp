@@ -47,6 +47,9 @@ process memory.
 - `search_grocery_products`
 - `create_grocery_handoff`
 - `get_grocery_handoff`
+- `create_grocery_order_template`
+- `list_grocery_order_templates`
+- `create_handoff_from_template`
 
 Example handoff input:
 
@@ -68,6 +71,14 @@ public customer storefront at request time. These storefront interfaces are
 not formal partner APIs and can change without notice. Responses include match
 confidence, alternatives, and observation timestamps so clients can make this
 uncertainty visible.
+
+Matching requires strong token overlap, rejects obvious cross-category
+substitutions, and prefers available products. If no safe result exists, the
+item is explicitly unmatched rather than replaced with a loosely related item.
+
+Reusable templates persist the retailer, location, and normalized grocery
+items. Running a template always performs fresh catalog searches and creates a
+new review-only handoff.
 
 ## Tests
 

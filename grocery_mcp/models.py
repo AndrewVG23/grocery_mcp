@@ -70,6 +70,37 @@ class HandoffRequest(BaseModel):
     postal_code: str | None = Field(default=None, max_length=12)
 
 
+class TemplateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    retailer: RetailerId
+    items: list[GroceryItem] = Field(min_length=1, max_length=30)
+    location_id: str | None = None
+    postal_code: str | None = Field(default=None, max_length=12)
+
+    @field_validator("name")
+    @classmethod
+    def clean_name(cls, value: str) -> str:
+        return " ".join(value.split())
+
+
+class GroceryOrderTemplate(BaseModel):
+    id: str
+    name: str
+    retailer: RetailerId
+    items: list[GroceryItem]
+    location_id: str | None = None
+    postal_code: str | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+    def handoff_request(self) -> HandoffRequest:
+        return HandoffRequest(
+            retailer=self.retailer,
+            items=self.items,
+            location_id=self.location_id,
+            postal_code=self.postal_code,
+        )
+
+
 class GroceryHandoff(BaseModel):
     id: str
     retailer: RetailerId

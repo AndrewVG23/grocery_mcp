@@ -6,6 +6,7 @@ from grocery_mcp.models import (
     ProductMatch,
     RetailerId,
     RetailerLocation,
+    TemplateRequest,
 )
 from grocery_mcp.providers.base import ProviderError, RetailerProvider
 from grocery_mcp.services.shopping_lists import ShoppingListService, normalize_items
@@ -79,3 +80,26 @@ async def test_unknown_location_is_rejected():
         assert "Unknown" in str(exc)
     else:
         raise AssertionError("Expected unknown location failure")
+
+
+async def test_reusable_template_creates_fresh_handoff():
+    service = ShoppingListService({RetailerId.KETTLE_RANGE: StubProvider()})
+    template = await service.create_template(
+        TemplateRequest(
+            name="Taco night",
+            retailer=RetailerId.KETTLE_RANGE,
+            location_id="test",
+            items=[
+                GroceryItem(name="ground beef"),
+                GroceryItem(name="ground beef", quantity=2),
+            ],
+        )
+    )
+
+    assert template.name == "Taco night"
+    assert template.items[0].quantity == 3
+    assert await service.get_template(template.id) == template
+
+    handoff = await service.create_handoff_from_template(template.id)
+    assert handoff is not None
+    assert handoff.results[0].match.name == "Matched ground beef"

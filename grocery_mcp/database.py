@@ -45,6 +45,11 @@ async def ensure_schema() -> None:
                 payload JSONB NOT NULL,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
+            CREATE TABLE IF NOT EXISTS grocery_templates (
+                id UUID PRIMARY KEY,
+                payload JSONB NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
             """
         )
     _schema_ready = True
@@ -113,6 +118,42 @@ async def load_handoff(handoff_id: str) -> dict[str, Any] | None:
         handoff_id,
     )
     return dict(value) if value is not None else None
+
+
+async def save_template(template_id: str, payload: dict[str, Any]) -> None:
+    connection_pool = await pool()
+    if connection_pool is None:
+        return
+    await connection_pool.execute(
+        """
+        INSERT INTO grocery_templates (id, payload)
+        VALUES ($1::uuid, $2::jsonb)
+        ON CONFLICT (id) DO UPDATE SET payload = EXCLUDED.payload
+        """,
+        template_id,
+        json.dumps(payload),
+    )
+
+
+async def load_template(template_id: str) -> dict[str, Any] | None:
+    connection_pool = await pool()
+    if connection_pool is None:
+        return None
+    value = await connection_pool.fetchval(
+        "SELECT payload FROM grocery_templates WHERE id = $1::uuid",
+        template_id,
+    )
+    return dict(value) if value is not None else None
+
+
+async def list_templates() -> list[dict[str, Any]]:
+    connection_pool = await pool()
+    if connection_pool is None:
+        return []
+    values = await connection_pool.fetch(
+        "SELECT payload FROM grocery_templates ORDER BY created_at DESC LIMIT 100"
+    )
+    return [dict(row["payload"]) for row in values]
 
 
 async def close_pool() -> None:
