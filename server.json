@@ -1,0 +1,18 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.AndrewVG23/grocery-mcp",
+  "title": "Grocery MCP",
+  "description": "Search direct grocery storefronts and create product-link pickup handoffs.",
+  "repository": {
+    "url": "https://github.com/AndrewVG23/grocery_mcp",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "websiteUrl": "https://github.com/AndrewVG23/grocery_mcp",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://grocery-mcp-production.up.railway.app/mcp"
+    }
+  ]
+}
