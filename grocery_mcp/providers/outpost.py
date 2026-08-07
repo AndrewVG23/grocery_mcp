@@ -9,7 +9,6 @@ import httpx
 from grocery_mcp.cache import TTLCache
 from grocery_mcp.config import cache_ttl_seconds
 from grocery_mcp.models import GroceryItem, ProductMatch, RetailerId, RetailerLocation
-from grocery_mcp.providers.http_client import storefront_client
 from grocery_mcp.providers.base import (
     CatalogProduct,
     ProviderError,
@@ -17,6 +16,7 @@ from grocery_mcp.providers.base import (
     rank_products,
     score_product,
 )
+from grocery_mcp.providers.http_client import storefront_client
 
 OUTPOST_LOCATIONS = {
     "capitol": RetailerLocation(
