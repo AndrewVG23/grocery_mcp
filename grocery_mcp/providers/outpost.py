@@ -6,8 +6,10 @@ from urllib.parse import quote
 
 import httpx
 
-from grocery_mcp.config import request_timeout
+from grocery_mcp.cache import TTLCache
+from grocery_mcp.config import cache_ttl_seconds
 from grocery_mcp.models import GroceryItem, ProductMatch, RetailerId, RetailerLocation
+from grocery_mcp.providers.http_client import storefront_client
 from grocery_mcp.providers.base import (
     CatalogProduct,
     ProviderError,
@@ -48,6 +50,9 @@ OUTPOST_LOCATIONS = {
 }
 
 
+_SEARCH_CACHE = TTLCache(cache_ttl_seconds())
+
+
 def _catalog_product(raw: dict[str, Any], location: RetailerLocation) -> CatalogProduct:
     product_id = str(raw.get("id") or "")
     # WebCart's stable detail route is /i/{inventory id}.
@@ -80,22 +85,26 @@ class OutpostProvider(RetailerProvider):
     retailer = RetailerId.OUTPOST
 
     def __init__(self, client: httpx.AsyncClient | None = None) -> None:
-        self._external_client = client
+        self._client = client
 
     async def locations(self) -> list[RetailerLocation]:
         return list(OUTPOST_LOCATIONS.values())
+
+    def _client_for(self) -> httpx.AsyncClient:
+        return self._client or storefront_client()
 
     async def _search_raw(self, query: str, location_id: str, limit: int) -> list[dict[str, Any]]:
         location = OUTPOST_LOCATIONS.get(location_id)
         if location is None:
             raise ProviderError(f"Unknown Outpost location: {location_id}")
 
-        owned_client = self._external_client is None
-        client = self._external_client or httpx.AsyncClient(
-            timeout=request_timeout(),
-            follow_redirects=True,
-            headers={"User-Agent": "grocery-mcp/0.1 (+catalog-link-service)"},
-        )
+        normalized_query = query.strip().casefold()
+        cache_key = f"{location_id}:{normalized_query}:{limit}"
+        cached = _SEARCH_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
+
+        client = self._client_for()
         try:
             response = await client.post(
                 f"{location.storefront_url}api/b/",
@@ -110,12 +119,10 @@ class OutpostProvider(RetailerProvider):
             products = payload.get("items") or []
             if not isinstance(products, list):
                 raise ProviderError("Outpost returned an unexpected catalog response.")
+            _SEARCH_CACHE.set(cache_key, products)
             return products
         except httpx.HTTPError as exc:
             raise ProviderError(f"Outpost catalog request failed: {exc}") from exc
-        finally:
-            if owned_client:
-                await client.aclose()
 
     async def search(
         self,
@@ -128,7 +135,7 @@ class OutpostProvider(RetailerProvider):
         if location is None:
             raise ProviderError(f"Unknown Outpost location: {selected}")
 
-        fetch_limit = min(max(limit * 4, 20), 50)
+        fetch_limit = min(max(limit * 3, 10), 20)
         products = [
             _catalog_product(raw, location)
             for raw in await self._search_raw(item.name, selected, fetch_limit)

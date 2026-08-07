@@ -5,7 +5,8 @@ import os
 
 
 def request_timeout() -> float:
-    return float(os.environ.get("STOREFRONT_TIMEOUT", "15"))
+    # Kettle Range catalog search often takes 45–60s; keep headroom for whoami.
+    return float(os.environ.get("STOREFRONT_TIMEOUT", "90"))
 
 
 def cache_ttl_seconds() -> int:

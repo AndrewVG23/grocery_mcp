@@ -1,6 +1,7 @@
 """Shopping-list normalization and retailer handoff orchestration."""
 from __future__ import annotations
 
+import asyncio
 from collections import OrderedDict
 from uuid import uuid4
 
@@ -96,24 +97,21 @@ class ShoppingListService:
                 f"Unknown {request.retailer.value} location: {request.location_id}"
             )
 
-        results: list[ItemResult] = []
         warnings = [
             (
                 "This service returns direct product links only; it does not add products "
                 "to the retailer cart."
             )
         ]
-        for item in normalize_items(request.items):
+        normalized = normalize_items(request.items)
+
+        async def resolve_item(item: GroceryItem) -> ItemResult:
             try:
                 matches = await provider.search(item, location_id=location.id, limit=5)
             except ProviderError as exc:
-                results.append(ItemResult(item=item, warning=str(exc)))
-                continue
+                return ItemResult(item=item, warning=str(exc))
             if not matches:
-                results.append(
-                    ItemResult(item=item, warning="No matching products were found.")
-                )
-                continue
+                return ItemResult(item=item, warning="No matching products were found.")
 
             best, *alternatives = matches
             warning = None
@@ -121,14 +119,14 @@ class ShoppingListService:
                 warning = "The best match has low confidence; review alternatives."
             if best.available is False:
                 warning = "The best match is currently marked out of stock."
-            results.append(
-                ItemResult(
-                    item=item,
-                    match=best,
-                    alternatives=alternatives[:3],
-                    warning=warning,
-                )
+            return ItemResult(
+                item=item,
+                match=best,
+                alternatives=alternatives[:3],
+                warning=warning,
             )
+
+        results = list(await asyncio.gather(*(resolve_item(item) for item in normalized)))
 
         handoff = GroceryHandoff(
             id=str(uuid4()),
