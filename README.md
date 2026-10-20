@@ -13,6 +13,23 @@ credentials, or handle payment. Every response explicitly reports
 `cart_prefilled: false`; the user opens the links, adds products, and checks out
 on the retailer's own site.
 
+## Connect
+
+Hosted server:
+
+```text
+https://grocery-mcp-production.up.railway.app/mcp
+```
+
+Claude and ChatGPT sign the person in. There is no shared password.
+
+- [Add Grocery in Claude](https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=Grocery&connectorUrl=https%3A%2F%2Fgrocery-mcp-production.up.railway.app%2Fmcp)
+- ChatGPT, on a Business, Enterprise, or Edu workspace: open [chatgpt.com/plugins](https://chatgpt.com/plugins), choose **Add custom MCP server**, paste the URL, and use **OAuth**.
+
+Start with `find_grocery_retailers`, then search or hand off a list. Every handoff is links the person opens. `cart_prefilled` stays false.
+
+Prices and stock come from the store's public site at the moment of the search. Kettle Range covers Milwaukee and Elm Grove. Outpost covers Capitol Drive, State Street, Bay View, and Mequon.
+
 ## Setup
 
 ```bash
