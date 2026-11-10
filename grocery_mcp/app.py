@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Grocery MCP",
     description="Direct Kettle Range and Outpost product-link handoffs",
-    version="0.1.0",
+    version="0.1.1",
     lifespan=lifespan,
 )
 app.include_router(router)

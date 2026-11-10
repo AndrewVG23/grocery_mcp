@@ -9,9 +9,13 @@ returns reviewable product links. It starts with:
 - Outpost Natural Foods — Capitol Drive, State Street, Bay View, and Mequon
 
 This service does **not** add products to carts, place orders, store retailer
-credentials, or handle payment. Every response explicitly reports
-`cart_prefilled: false`; the user opens the links, adds products, and checks out
-on the retailer's own site.
+credentials, or handle payment. Every response reports `cart_prefilled: false`.
+The shopper opens the links and checks out on the retailer's own site.
+
+A Kettle Range link opened in the shopper's browser stays in that store session,
+on the product page. An Outpost link opened from Claude starts a new visit,
+because Outpost does not send its session cookie on a click from another site.
+Paste Outpost links into a tab that is already on the Outpost storefront.
 
 ## Connect
 
@@ -26,7 +30,7 @@ Claude and ChatGPT sign the person in. There is no shared password.
 - [Add Grocery in Claude](https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=Grocery&connectorUrl=https%3A%2F%2Fgrocery-mcp-production.up.railway.app%2Fmcp)
 - ChatGPT, on a Business, Enterprise, or Edu workspace: open [chatgpt.com/plugins](https://chatgpt.com/plugins), choose **Add custom MCP server**, paste the URL, and use **OAuth**.
 
-Start with `find_grocery_retailers`, then search or hand off a list. Every handoff is links the person opens. `cart_prefilled` stays false.
+Start with `find_grocery_retailers`, then search or hand off a list. The client must open `browser_session.start_url` in the person's own browser, then open each product link in that same browser so Add to cart hits one cart. `cart_prefilled` stays false.
 
 Prices and stock come from the store's public site at the moment of the search. Kettle Range covers Milwaukee and Elm Grove. Outpost covers Capitol Drive, State Street, Bay View, and Mequon.
 
@@ -96,6 +100,19 @@ item is explicitly unmatched rather than replaced with a loosely related item.
 Reusable templates persist the retailer, location, and normalized grocery
 items. Running a template always performs fresh catalog searches and creates a
 new review-only handoff.
+
+## Directory listings
+
+Registry name: `io.github.AndrewVG23/grocery-mcp`.
+
+| Step | Action |
+| --- | --- |
+| Official MCP Registry | Tag `v0.1.1` (see `publish-mcp` workflow) |
+| [Glama](https://glama.ai/mcp/servers) | Claim GitHub repo; hosted URL tab → `https://grocery-mcp-production.up.railway.app/mcp` |
+| [Smithery](https://smithery.ai/new) | External HTTP → same MCP URL (OAuth) |
+| [mcp.so](https://mcp.so/submit) | Submit repo `https://github.com/AndrewVG23/grocery_mcp` or the MCP URL |
+
+Server card: `https://grocery-mcp-production.up.railway.app/.well-known/mcp/server-card.json`
 
 ## Tests
 

@@ -6,18 +6,28 @@ from typing import Any
 from fastmcp import FastMCP
 
 from grocery_mcp.auth import build_http_auth
-from grocery_mcp.models import GroceryItem, HandoffRequest, RetailerId, TemplateRequest
+from grocery_mcp.models import (
+    GroceryItem,
+    HandoffRequest,
+    RetailerId,
+    TemplateRequest,
+    browser_cart_session,
+)
 from grocery_mcp.providers.base import ProviderError
+from grocery_mcp.directory_pages import register_directory_pages
 from grocery_mcp.services.shopping_lists import service
 
 mcp = FastMCP(
     name="grocery",
     instructions=(
-        "Search direct retailer storefronts and return product links for user review. "
-        "This service never fills a cart or places an order. Always show warnings, "
-        "availability, match confidence, alternatives, and unmatched items. Never "
-        "substitute a different product category just to produce a result. The user "
-        "must add products and finish checkout on the retailer website."
+        "Search direct retailer storefronts and return product links for the shopper to open. "
+        "Never say a cart was filled. cart_prefilled is always false, and this server cannot "
+        "add items to the shopper's store session. Kettle Range links opened in the shopper's "
+        "browser stay signed in but land on the product page. Outpost links opened from Claude "
+        "start a new visit; the shopper must paste them into an Outpost tab that is already open. "
+        "Always show browser_cart_session.note, warnings, availability, match confidence, "
+        "alternatives, and unmatched items. Never substitute a different product category "
+        "just to produce a result. The shopper adds products and checks out on the retailer website."
     ),
     auth=build_http_auth(),
 )
@@ -60,6 +70,7 @@ async def search_grocery_products(
         "retailer": retailer_id,
         "query": query,
         "cart_prefilled": False,
+        "browser_cart_session": browser_cart_session(retailer_id).model_dump(mode="json"),
         "matches": [match.model_dump(mode="json") for match in matches],
     }
 
@@ -139,3 +150,6 @@ async def create_handoff_from_template(template_id: str) -> dict[str, Any]:
     if handoff is None:
         return {"error": "template not found"}
     return handoff.model_dump(mode="json")
+
+
+register_directory_pages(mcp)

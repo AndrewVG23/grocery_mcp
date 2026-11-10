@@ -101,6 +101,36 @@ class GroceryOrderTemplate(BaseModel):
         )
 
 
+class BrowserCartSession(BaseModel):
+    """How a product link behaves in the shopper's own browser."""
+
+    product_link_keeps_store_login: bool
+    server_can_add_to_that_cart: bool = False
+    note: str
+
+
+def browser_cart_session(retailer: RetailerId) -> BrowserCartSession:
+    if retailer is RetailerId.KETTLE_RANGE:
+        return BrowserCartSession(
+            product_link_keeps_store_login=True,
+            note=(
+                "Open each product link in the browser where you shop Kettle Range. "
+                "That link stays in your store session and shows the product page. "
+                "It does not add the item. This server cannot add it either: "
+                "Kettle Range does not let another website use your store session."
+            ),
+        )
+    return BrowserCartSession(
+        product_link_keeps_store_login=False,
+        note=(
+            "Open the Outpost storefront first, then paste each product link into that tab. "
+            "A link clicked from Claude starts a new visit, because Outpost does not send "
+            "its session cookie on a click from another site. Add the item from the Outpost tab. "
+            "This server cannot add it to the cart you already have."
+        ),
+    )
+
+
 class GroceryHandoff(BaseModel):
     id: str
     retailer: RetailerId
@@ -110,5 +140,6 @@ class GroceryHandoff(BaseModel):
     storefront_url: str
     cart_prefilled: bool = False
     requires_user_checkout: bool = True
+    browser_cart_session: BrowserCartSession | None = None
     warnings: list[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

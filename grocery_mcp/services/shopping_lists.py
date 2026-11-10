@@ -23,6 +23,7 @@ from grocery_mcp.models import (
     RetailerId,
     RetailerLocation,
     TemplateRequest,
+    browser_cart_session,
 )
 from grocery_mcp.providers import KettleRangeProvider, OutpostProvider
 from grocery_mcp.providers.base import ProviderError, RetailerProvider
@@ -97,12 +98,8 @@ class ShoppingListService:
                 f"Unknown {request.retailer.value} location: {request.location_id}"
             )
 
-        warnings = [
-            (
-                "This service returns direct product links only; it does not add products "
-                "to the retailer cart."
-            )
-        ]
+        session = browser_cart_session(request.retailer)
+        warnings = [session.note]
         normalized = normalize_items(request.items)
 
         async def resolve_item(item: GroceryItem) -> ItemResult:
@@ -134,6 +131,7 @@ class ShoppingListService:
             location=location,
             results=results,
             storefront_url=location.storefront_url,
+            browser_cart_session=session,
             warnings=warnings,
         )
         self._handoffs[handoff.id] = handoff

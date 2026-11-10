@@ -7,8 +7,8 @@
     "url": "https://github.com/AndrewVG23/grocery_mcp",
     "source": "github"
   },
-  "version": "0.1.0",
-  "websiteUrl": "https://github.com/AndrewVG23/grocery_mcp",
+  "version": "0.1.1",
+  "websiteUrl": "https://grocery-mcp-production.up.railway.app/listing/docs",
   "remotes": [
     {
       "type": "streamable-http",

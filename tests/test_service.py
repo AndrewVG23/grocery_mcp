@@ -7,6 +7,7 @@ from grocery_mcp.models import (
     RetailerId,
     RetailerLocation,
     TemplateRequest,
+    browser_cart_session,
 )
 from grocery_mcp.providers.base import ProviderError, RetailerProvider
 from grocery_mcp.services.shopping_lists import ShoppingListService, normalize_items
@@ -40,6 +41,13 @@ class StubProvider(RetailerProvider):
         ]
 
 
+def test_outpost_links_do_not_join_a_cart_opened_from_another_site():
+    session = browser_cart_session(RetailerId.OUTPOST)
+    assert session.product_link_keeps_store_login is False
+    assert session.server_can_add_to_that_cart is False
+    assert "Outpost" in session.note
+
+
 def test_normalize_items_merges_exact_duplicates():
     result = normalize_items(
         [
@@ -62,6 +70,10 @@ async def test_create_handoff_is_explicitly_not_a_cart():
     )
     assert handoff.cart_prefilled is False
     assert handoff.requires_user_checkout is True
+    assert handoff.browser_cart_session is not None
+    assert handoff.browser_cart_session.server_can_add_to_that_cart is False
+    assert handoff.browser_cart_session.product_link_keeps_store_login is True
+    assert handoff.warnings == [handoff.browser_cart_session.note]
     assert handoff.results[0].match.name == "Matched chicken thighs"
     assert await service.get_handoff(handoff.id) == handoff
 
