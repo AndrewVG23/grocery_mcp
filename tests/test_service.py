@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from grocery_mcp.models import (
     GroceryItem,
     HandoffRequest,
@@ -9,6 +11,8 @@ from grocery_mcp.models import (
     TemplateRequest,
     browser_cart_session,
 )
+from grocery_mcp.open_outpost_cart import plan_endpoint
+from grocery_mcp.outpost_checkout import load_outpost_cart, render_outpost_cart_page
 from grocery_mcp.providers.base import ProviderError, RetailerProvider
 from grocery_mcp.services.shopping_lists import ShoppingListService, normalize_items
 
@@ -115,3 +119,92 @@ async def test_reusable_template_creates_fresh_handoff():
     handoff = await service.create_handoff_from_template(template.id)
     assert handoff is not None
     assert handoff.results[0].match.name == "Matched ground beef"
+
+
+class _CartProvider(StubProvider):
+    async def start_pickup_cart(self, location_id, products):
+        return {
+            "checkout_url": "https://shop.kettlerangemeats.com/checkout?ex_access_token=test",
+            "total_text": "$6.25",
+            "lines": [
+                {
+                    "requested_name": products[0]["requested_name"],
+                    "product_name": "Boneless chicken thighs",
+                    "quantity": products[0]["quantity"],
+                    "price_text": "$6.25",
+                }
+            ],
+            "skipped": [],
+        }
+
+
+async def test_kettle_checkout_returns_the_store_link():
+    service = ShoppingListService({RetailerId.KETTLE_RANGE: _CartProvider()})
+    checkout = await service.start_checkout(
+        HandoffRequest(
+            retailer=RetailerId.KETTLE_RANGE,
+            location_id="test",
+            items=[GroceryItem(name="chicken thighs", quantity=2)],
+        )
+    )
+    assert checkout.cart_prefilled is True
+    assert checkout.requires_user_checkout is True
+    assert checkout.checkout_url.endswith("ex_access_token=test")
+    assert checkout.lines[0].product_name == "Boneless chicken thighs"
+    assert checkout.lines[0].quantity == 2
+    assert checkout.total_text == "$6.25"
+    assert checkout.unmatched == []
+
+
+class _OutpostProvider(StubProvider):
+    retailer = RetailerId.OUTPOST
+
+    async def locations(self):
+        return [
+            RetailerLocation(
+                id="bay_view",
+                retailer=self.retailer,
+                name="Outpost Bay View",
+                storefront_url="https://shop.outpost.coop/s/1000-5/",
+            )
+        ]
+
+    async def search(self, item, location_id=None, limit=5):
+        matches = await super().search(item, location_id=location_id, limit=limit)
+        matches[0].price = 3.49
+        matches[0].price_text = "$3.49"
+        matches[0].product_id = "INV-1000-8"
+        return matches
+
+
+async def test_outpost_checkout_fills_the_shoppers_store_tab():
+    service = ShoppingListService({RetailerId.OUTPOST: _OutpostProvider()})
+    checkout = await service.start_checkout(
+        HandoffRequest(
+            retailer=RetailerId.OUTPOST,
+            location_id="bay_view",
+            items=[GroceryItem(name="bananas", quantity=2)],
+        )
+    )
+    cart_id = checkout.checkout_url.rstrip("/").rsplit("/", 1)[-1]
+    plan = await load_outpost_cart(cart_id)
+    assert checkout.cart_prefilled is False
+    assert checkout.requires_user_checkout is True
+    assert "/outpost-cart/" in checkout.checkout_url
+    assert checkout.lines[0].product_name == "Matched bananas"
+    assert checkout.total_text == "$6.98"
+    assert plan["cart_api"] == "https://shop.outpost.coop/s/1000-5/api/cart"
+    assert plan["items"] == [{"item": "INV-1000-8", "quantity": 2, "substitutable": True}]
+    assert "filled cart" in checkout.note
+    assert "Sign in" in checkout.note
+    assert "password" in checkout.note
+    page = render_outpost_cart_page(
+        plan,
+        f"https://example.test/outpost-cart/{cart_id}/plan.json",
+        cart_id,
+    )
+    assert "× 2" in page
+    assert f"outpostcart://{cart_id}" in page
+    assert "Open the filled cart" in page
+    assert "Sign in" in page
+    assert plan_endpoint(f"outpostcart://{cart_id}").endswith(f"/outpost-cart/{cart_id}/plan.json")

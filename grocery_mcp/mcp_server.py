@@ -20,14 +20,15 @@ from grocery_mcp.services.shopping_lists import service
 mcp = FastMCP(
     name="grocery",
     instructions=(
-        "Search direct retailer storefronts and return product links for the shopper to open. "
-        "Never say a cart was filled. cart_prefilled is always false, and this server cannot "
-        "add items to the shopper's store session. Kettle Range links opened in the shopper's "
-        "browser stay signed in but land on the product page. Outpost links opened from Claude "
-        "start a new visit; the shopper must paste them into an Outpost tab that is already open. "
-        "Always show browser_cart_session.note, warnings, availability, match confidence, "
-        "alternatives, and unmatched items. Never substitute a different product category "
-        "just to produce a result. The shopper adds products and checks out on the retailer website."
+        "Search Kettle Range and Outpost. To place an order, call start_grocery_checkout "
+        "and give the shopper checkout_url. Kettle Range opens a filled cart on the store "
+        "site. Outpost opens a page whose button launches the store with the cart "
+        "already filled. The shopper can sign in to Outpost in that window. This "
+        "service does not see that password. Do not ask "
+        "for a card number. Do not say the order is placed until the shopper finishes "
+        "checkout on the retailer site. "
+        "Always show unmatched items, prices, and availability. Never substitute a different "
+        "product category just to produce a result."
     ),
     auth=build_http_auth(),
 )
@@ -101,6 +102,42 @@ async def create_grocery_handoff(
     except (ValueError, ProviderError) as exc:
         return {"error": str(exc)}
     return handoff.model_dump(mode="json")
+
+
+@mcp.tool()
+async def start_grocery_checkout(
+    retailer: str,
+    items: list[dict[str, Any]],
+    location_id: str | None = None,
+    postal_code: str | None = None,
+) -> dict[str, Any]:
+    """Start a cart the shopper pays for on the retailer site.
+
+    Kettle Range returns the store checkout link. Outpost opens a browser window
+    with the cart already filled. The shopper can sign in to Outpost in that
+    window, and this Mac remembers the sign-in. This server does not take
+    a card number or the Outpost password. The order is placed only after the
+    shopper checks out there.
+
+    Args:
+        retailer: ``kettle_range`` or ``outpost``.
+        items: Grocery items with ``name`` and optional quantity/unit/brand/notes.
+        location_id: Kettle Range ``milwaukee`` or ``elm_grove``. Outpost
+            ``capitol``, ``state``, ``bay_view``, or ``mequon``. Defaults to
+            Milwaukee or Bay View.
+        postal_code: Unused for pickup. Kept so a saved list can call this tool.
+    """
+    try:
+        request = HandoffRequest(
+            retailer=RetailerId(retailer),
+            items=[GroceryItem.model_validate(item) for item in items],
+            location_id=location_id,
+            postal_code=postal_code,
+        )
+        checkout = await service.start_checkout(request)
+    except (ValueError, ProviderError) as exc:
+        return {"error": str(exc)}
+    return checkout.model_dump(mode="json")
 
 
 @mcp.tool()

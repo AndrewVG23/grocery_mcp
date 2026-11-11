@@ -4,7 +4,7 @@ from __future__ import annotations
 import base64
 import time
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import quote, urljoin
 
 import httpx
 
@@ -43,6 +43,22 @@ KETTLE_LOCATIONS = {
 STORE_IDS = {"milwaukee": "3733", "elm_grove": "3914"}
 _TOKEN_TTL_SECONDS = 1800
 _SEARCH_CACHE = TTLCache(cache_ttl_seconds())
+
+
+def _order_quantity(value: Any) -> int | float:
+    number = float(value)
+    if number.is_integer():
+        return int(number)
+    return number
+
+
+def _money(value: Any) -> str | None:
+    if value is None or value == "":
+        return None
+    text = str(value).strip()
+    if text.startswith("$"):
+        return text
+    return f"${text}"
 
 
 def _encode_search(value: str) -> str:
@@ -92,6 +108,96 @@ class KettleRangeProvider(RetailerProvider):
         self._token = token
         self._token_expires_at = now + _TOKEN_TTL_SECONDS
         return token
+
+    async def _issue_guest_token(self, client: httpx.AsyncClient) -> str:
+        """A new guest session. Checkout must not reuse the shared catalog token."""
+        whoami = await client.get(f"{API_BASE}/whoami")
+        whoami.raise_for_status()
+        token = (whoami.json().get("data") or {}).get("token")
+        if not token:
+            raise ProviderError("Kettle Range did not issue a guest checkout session.")
+        return token
+
+    async def start_pickup_cart(
+        self,
+        location_id: str,
+        products: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Add matched products to a new guest pickup cart and return its checkout link."""
+        store_id = STORE_IDS.get(location_id)
+        if store_id is None:
+            raise ProviderError(f"Unknown Kettle Range location: {location_id}")
+        if not products:
+            raise ProviderError("No Kettle Range products to add.")
+
+        client = self._client_for()
+        try:
+            token = await self._issue_guest_token(client)
+            headers = {"Authorization": f"Bearer {token}"}
+            selected = await client.post(
+                f"{API_BASE}/user/set-selected-store",
+                json={"storeId": int(store_id)},
+                headers=headers,
+            )
+            selected.raise_for_status()
+            quantities = {
+                str(product["store_product_id"]): _order_quantity(product["quantity"])
+                for product in products
+            }
+            response = await client.put(
+                f"{API_BASE}/layout/cart/add-bulk",
+                json={
+                    "products": [
+                        {
+                            "storeProductId": product["store_product_id"],
+                            "quantity": quantities[str(product["store_product_id"])],
+                            "mode": "pickup",
+                        }
+                        for product in products
+                    ],
+                    "force": 0,
+                    "deliveryMode": "pickup",
+                    "short": 0,
+                },
+                headers=headers,
+            )
+        except httpx.HTTPError as exc:
+            raise ProviderError(f"Kettle Range checkout failed: {exc}") from exc
+
+        payload = response.json()
+        if response.status_code >= 400 or payload.get("code") not in (None, "OK"):
+            message = payload.get("message") or "Kettle Range could not add these products."
+            raise ProviderError(str(message))
+
+        data = payload.get("data") or {}
+        added = data.get("addedProductsData") or []
+        if not added:
+            raise ProviderError("Kettle Range did not add any products to the cart.")
+
+        by_id = {str(product["store_product_id"]): product for product in products}
+        lines = []
+        for item in added:
+            requested = by_id.get(str(item.get("storeProductId"))) or {}
+            lines.append(
+                {
+                    "requested_name": requested.get("requested_name")
+                    or item.get("productName")
+                    or "Item",
+                    "product_name": item.get("productName") or "Item",
+                    "quantity": item.get("productQuantity") or requested.get("quantity") or 1,
+                    "price_text": _money(item.get("productPrice")),
+                }
+            )
+        skipped = [
+            str(item.get("productName") or item.get("title") or "item")
+            for item in data.get("skippedProducts") or []
+        ]
+        return {
+            "checkout_url": f"{STOREFRONT}/checkout?ex_access_token={quote(token, safe='')}",
+            "total_text": data.get("totalFormatted"),
+            "lines": lines,
+            "skipped": skipped,
+        }
 
     async def _search_raw(self, query: str, location_id: str, limit: int) -> list[dict[str, Any]]:
         store_id = STORE_IDS.get(location_id)

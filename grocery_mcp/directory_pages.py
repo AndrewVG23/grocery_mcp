@@ -6,6 +6,12 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse
 
 from grocery_mcp.config import public_base_url
+from grocery_mcp.outpost_checkout import (
+    load_outpost_cart,
+    plan_json,
+    plan_url_for,
+    render_outpost_cart_page,
+)
 
 DEFAULT_HOST = "https://grocery-mcp-production.up.railway.app"
 SERVER_VERSION = "0.1.1"
@@ -45,7 +51,7 @@ def register_directory_pages(mcp) -> None:
             "Grocery MCP",
             f"""<h1>Grocery MCP</h1>
 <p>Version {SERVER_VERSION}. Streamable HTTP at <a href="{host}/mcp">{host}/mcp</a>.</p>
-<p>Search Kettle Range and Outpost storefronts and return direct product links. The shopper opens links and checks out on the retailer site. <code>cart_prefilled</code> is always false.</p>
+<p>Search Kettle Range and Outpost. <code>start_grocery_checkout</code> starts a cart the shopper pays for on the store site. Kettle Range returns the store checkout link. Outpost opens a browser window with the cart already filled. The shopper can sign in to Outpost in that window. This service does not take a card number or the Outpost password.</p>
 <p>OAuth with dynamic client registration is enabled on the hosted deployment. Claude and ChatGPT connectors should use OAuth.</p>
 <p>Questions: <a href="mailto:{CONTACT}">{CONTACT}</a>.</p>""",
         )
@@ -56,7 +62,7 @@ def register_directory_pages(mcp) -> None:
         body = _page(
             "Privacy",
             f"""<h1>Privacy</h1>
-<p>Grocery MCP does not complete purchases or store retailer passwords. Product links and prices come from each retailer's public storefront at request time. OAuth client registrations may be stored when a database is configured.</p>
+<p>Grocery MCP does not take card numbers or store retailer passwords. A Kettle Range checkout link is a guest session for that cart. An Outpost checkout opens a local browser window with the cart already filled. Signing in on that window stays on this Mac for the next cart. The shopper pays on the retailer site. Product names and prices come from each retailer's public storefront at request time. OAuth client registrations and Outpost cart plans may be stored when a database is configured.</p>
 <p>Contact: <a href="mailto:{CONTACT}">{CONTACT}</a>.</p>""",
         )
         return HTMLResponse(body)
@@ -71,7 +77,7 @@ def register_directory_pages(mcp) -> None:
                     "version": SERVER_VERSION,
                     "documentation": f"{host}/listing/docs",
                 },
-                "description": "Search direct grocery storefronts and create product-link pickup handoffs.",
+                "description": "Search grocery storefronts. Kettle Range and Outpost checkout start a cart the shopper pays for on the store site.",
                 "documentation": f"{host}/listing/docs",
                 "transport": {"type": "streamable-http", "url": f"{host}/mcp"},
                 "authentication": {
@@ -90,3 +96,25 @@ def register_directory_pages(mcp) -> None:
                 "maintainers": ["AndrewVG23"],
             }
         )
+
+    @mcp.custom_route("/outpost-cart/{cart_id}", methods=["GET"])
+    async def outpost_cart_page(request: Request) -> HTMLResponse:
+        plan = await load_outpost_cart(request.path_params["cart_id"])
+        if plan is None:
+            return HTMLResponse("<h1>Cart not found</h1>", status_code=404)
+        page = render_outpost_cart_page(
+            plan,
+            plan_url_for(host, request.path_params["cart_id"]),
+            request.path_params["cart_id"],
+        )
+        return HTMLResponse(page)
+
+    @mcp.custom_route("/outpost-cart/{cart_id}/plan.json", methods=["GET"])
+    async def outpost_cart_plan(request: Request) -> JSONResponse:
+        plan = await load_outpost_cart(request.path_params["cart_id"])
+        if plan is None:
+            return JSONResponse({"error": "Cart not found"}, status_code=404)
+        response = JSONResponse(plan_json(plan))
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Cache-Control"] = "no-store"
+        return response

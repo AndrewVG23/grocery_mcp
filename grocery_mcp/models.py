@@ -131,6 +131,27 @@ def browser_cart_session(retailer: RetailerId) -> BrowserCartSession:
     )
 
 
+class CheckoutLine(BaseModel):
+    requested_name: str
+    product_name: str
+    quantity: float
+    price_text: str | None = None
+
+
+class GroceryCheckout(BaseModel):
+    """A pickup cart on the retailer's site. The shopper pays there."""
+
+    retailer: RetailerId
+    location: RetailerLocation
+    checkout_url: str
+    lines: list[CheckoutLine]
+    unmatched: list[str] = Field(default_factory=list)
+    total_text: str | None = None
+    cart_prefilled: bool = True
+    requires_user_checkout: bool = True
+    note: str
+
+
 class GroceryHandoff(BaseModel):
     id: str
     retailer: RetailerId

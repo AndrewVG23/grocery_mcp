@@ -70,7 +70,7 @@ def _catalog_product(raw: dict[str, Any], location: RetailerLocation) -> Catalog
         brand=raw.get("brand"),
         price=normalized_price,
         price_text=price_text,
-        available=not bool(raw.get("outOfStock", False)),
+        available=(not bool(raw.get("outOfStock", False))) or bool(raw.get("sellOutOfStock", False)),
         url=product_url,
         image_url=(
             f"{location.storefront_url.rstrip('/')}/api/img/{raw['image']}"

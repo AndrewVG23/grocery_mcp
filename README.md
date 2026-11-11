@@ -8,14 +8,16 @@ returns reviewable product links. It starts with:
 - Kettle Range Meat Co. — Milwaukee and Elm Grove
 - Outpost Natural Foods — Capitol Drive, State Street, Bay View, and Mequon
 
-This service does **not** add products to carts, place orders, store retailer
-credentials, or handle payment. Every response reports `cart_prefilled: false`.
-The shopper opens the links and checks out on the retailer's own site.
+`start_grocery_checkout` starts a cart the shopper pays for on the store site.
+Kettle Range returns the store checkout link. Outpost opens a browser window
+with the cart already filled. The shopper can sign in to Outpost in that
+window, and this Mac remembers the sign-in. This service does not take a
+card number or store retailer passwords.
 
-A Kettle Range link opened in the shopper's browser stays in that store session,
-on the product page. An Outpost link opened from Claude starts a new visit,
-because Outpost does not send its session cookie on a click from another site.
-Paste Outpost links into a tab that is already on the Outpost storefront.
+A Kettle Range checkout link opens that guest cart on the store site. Outpost
+checkout opens a local browser window with those items already in the cart.
+Sign in on that window to keep the order on an Outpost account. The shopper
+pays on Outpost.
 
 ## Connect
 
@@ -30,7 +32,7 @@ Claude and ChatGPT sign the person in. There is no shared password.
 - [Add Grocery in Claude](https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=Grocery&connectorUrl=https%3A%2F%2Fgrocery-mcp-production.up.railway.app%2Fmcp)
 - ChatGPT, on a Business, Enterprise, or Edu workspace: open [chatgpt.com/plugins](https://chatgpt.com/plugins), choose **Add custom MCP server**, paste the URL, and use **OAuth**.
 
-Start with `find_grocery_retailers`, then search or hand off a list. The client must open `browser_session.start_url` in the person's own browser, then open each product link in that same browser so Add to cart hits one cart. `cart_prefilled` stays false.
+Start with `find_grocery_retailers`, then search or hand off a list. For an order, call `start_grocery_checkout`. Product-link handoffs still need the shopper to open `browser_session.start_url` and then each product link in that same browser. `cart_prefilled` stays false on those handoffs.
 
 Prices and stock come from the store's public site at the moment of the search. Kettle Range covers Milwaukee and Elm Grove. Outpost covers Capitol Drive, State Street, Bay View, and Mequon.
 
@@ -58,15 +60,16 @@ HTTP endpoints:
 - Product search: `http://localhost:8080/v1/products/search`
 - Handoffs: `POST http://localhost:8080/v1/handoffs`
 
-When `DATABASE_URL` is configured, handoffs and OAuth dynamic client
-registrations are persisted in PostgreSQL. Without it, local development uses
-process memory.
+When `DATABASE_URL` is configured, handoffs, Outpost cart plans, and OAuth
+dynamic client registrations are persisted in PostgreSQL. Without it, local
+development uses process memory.
 
 ## MCP tools
 
 - `find_grocery_retailers`
 - `search_grocery_products`
 - `create_grocery_handoff`
+- `start_grocery_checkout`
 - `get_grocery_handoff`
 - `create_grocery_order_template`
 - `list_grocery_order_templates`
