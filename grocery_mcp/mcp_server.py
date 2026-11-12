@@ -1,12 +1,18 @@
 """MCP tools for direct grocery product-link handoffs."""
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from fastmcp import FastMCP
+from fastmcp.tools.tool import ToolResult
+from fastmcp.utilities.types import File
 
 from grocery_mcp.auth import build_http_auth
 from grocery_mcp.directory_pages import register_directory_pages
+from grocery_mcp.menus.pdf import MenuLayoutError
+from grocery_mcp.menus.schema import MenuError
+from grocery_mcp.menus.store import layout_error, menu_error, render_menu_file, shopping_list_for
 from grocery_mcp.models import (
     GroceryItem,
     HandoffRequest,
@@ -26,6 +32,11 @@ mcp = FastMCP(
         "already filled. Do not ask "
         "for a card number. Do not say the order is placed until the shopper finishes "
         "checkout on the retailer site. "
+        "To print a menu, you write the Menu JSON yourself. This server does not invent it. "
+        "Call build_shopping_list, then start_grocery_checkout with those items, then "
+        "render_menu_pdf with that checkout_url. The PDF file includes that live cart "
+        "link. Do not expect a stored link. create_grocery_handoff returns "
+        "product links and does not fill a cart. "
         "Always show unmatched items, prices, and availability. Never substitute a different "
         "product category just to produce a result."
     ),
@@ -93,7 +104,7 @@ async def create_grocery_handoff(
     try:
         request = HandoffRequest(
             retailer=RetailerId(retailer),
-            items=[GroceryItem.model_validate(item) for item in items],
+            items=_grocery_items(items),
             location_id=location_id,
             postal_code=postal_code,
         )
@@ -117,9 +128,14 @@ async def start_grocery_checkout(
     a card number or the Outpost password. The order is placed only after the
     shopper checks out there.
 
+    For a printed menu, call build_shopping_list first and pass its items here.
+    Then call render_menu_pdf with that checkout_url. The PDF opens the filled
+    cart. This is the cart link for the menu, not create_grocery_handoff.
+
     Args:
         retailer: ``kettle_range`` or ``outpost``.
         items: Grocery items with ``name`` and optional quantity/unit/brand/notes.
+            Items from build_shopping_list may use ``item``, ``qty``, and ``unit``.
         location_id: Kettle Range ``milwaukee`` or ``elm_grove``. Outpost
             ``capitol``, ``state``, ``bay_view``, or ``mequon``. Defaults to
             Milwaukee or Bay View.
@@ -128,7 +144,7 @@ async def start_grocery_checkout(
     try:
         request = HandoffRequest(
             retailer=RetailerId(retailer),
-            items=[GroceryItem.model_validate(item) for item in items],
+            items=_grocery_items(items),
             location_id=location_id,
             postal_code=postal_code,
         )
@@ -185,6 +201,82 @@ async def create_handoff_from_template(template_id: str) -> dict[str, Any]:
     if handoff is None:
         return {"error": "template not found"}
     return handoff.model_dump(mode="json")
+
+
+def _grocery_items(items: list[dict[str, Any]]) -> list[GroceryItem]:
+    parsed: list[GroceryItem] = []
+    for raw in items:
+        payload = dict(raw)
+        if not payload.get("name") and payload.get("item"):
+            payload["name"] = payload["item"]
+        if payload.get("quantity") is None and payload.get("qty") is not None:
+            payload["quantity"] = payload["qty"]
+        parsed.append(GroceryItem.model_validate(payload))
+    return parsed
+
+
+@mcp.tool()
+async def build_shopping_list(menu: dict[str, Any]) -> dict[str, Any]:
+    """Sum a menu into a shopping list. You write the menu JSON; this server does not.
+
+    Call this first. Pass the returned items to start_grocery_checkout, then call
+    render_menu_pdf. Each item is ``{item, qty, unit}``. Matching units are combined
+    and rounded up to a purchasable size. Eggs round up to the next dozen.
+
+    Args:
+        menu: Menu JSON with ``title``, optional ``subtitle``, and 1 to 7 ``days``.
+            A day has ``label`` and 1 to 4 ``meals``. A meal has ``course``, ``name``
+            (max 40 characters), optional ``description`` (max 90), and
+            ``ingredients`` of ``{item, qty, unit}``.
+    """
+    try:
+        return await shopping_list_for(menu)
+    except MenuError as exc:
+        return menu_error(exc)
+
+
+@mcp.tool()
+async def render_menu_pdf(
+    menu: dict[str, Any],
+    cart: dict[str, Any] | str | None = None,
+    paper: str = "letter",
+    checkout_url: str | None = None,
+) -> Any:
+    """Render the menu to a PDF and return the file. Call this after start_grocery_checkout.
+
+    Pass ``checkout_url`` from that tool. The PDF's "Open the filled cart" link
+    and QR code both open that same cart. A bare URL in ``cart`` is also accepted.
+    The PDF is attached to this result. Nothing is uploaded or saved. Show the
+    file to the shopper. One column is one day, and three days fit on a page.
+
+    Args:
+        menu: The same Menu JSON passed to build_shopping_list.
+        cart: The checkout URL, or ``{url, retailer, item_count}``.
+        paper: ``letter`` or ``a4``.
+        checkout_url: The live filled-cart link from start_grocery_checkout.
+    """
+    try:
+        rendered = await render_menu_file(menu, cart, paper, checkout_url)
+    except MenuError as exc:
+        return menu_error(exc)
+    except MenuLayoutError as exc:
+        return layout_error(exc)
+    summary = {
+        "pages": rendered.pages,
+        "filename": rendered.filename,
+        "checkout_url": rendered.checkout_url,
+    }
+    return ToolResult(
+        content=[
+            json.dumps(summary),
+            File(
+                data=rendered.pdf,
+                format="pdf",
+                name=rendered.filename.removesuffix(".pdf"),
+            ),
+        ],
+        structured_content=summary,
+    )
 
 
 register_directory_pages(mcp)

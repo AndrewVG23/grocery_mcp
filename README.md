@@ -17,6 +17,11 @@ A Kettle Range checkout link opens that guest cart on the store site. An
 Outpost checkout link opens the filled guest cart. The shopper pays on that
 page.
 
+A printed menu starts as JSON the caller writes. `build_shopping_list` sums
+the ingredients, `start_grocery_checkout` fills the cart, and `render_menu_pdf`
+returns the landscape PDF in the tool result. The "Open the filled cart"
+link and QR code use that checkout URL. The file is not stored.
+
 ## Connect
 
 Hosted server:

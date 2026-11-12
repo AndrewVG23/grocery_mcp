@@ -8,8 +8,11 @@ dependencies = [
     "fastapi>=0.115,<1",
     "fastmcp>=2.0,<3",
     "httpx>=0.27,<1",
+    "playwright==1.65.1",
     "pydantic>=2.9,<3",
+    "pypdf>=5,<7",
     "rapidfuzz>=3.9,<4",
+    "segno>=1.6,<2",
     "uvicorn>=0.30,<1",
 ]
 
@@ -30,6 +33,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["grocery_mcp*"]
+
+[tool.setuptools.package-data]
+grocery_mcp = ["menus/template.html", "menus/fonts/*.woff2"]
 
 [tool.ruff]
 line-length = 100
