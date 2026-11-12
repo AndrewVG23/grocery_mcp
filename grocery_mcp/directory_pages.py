@@ -56,6 +56,10 @@ def register_directory_pages(mcp) -> None:
 <p>Version {SERVER_VERSION}. Streamable HTTP at <a href="{host}/mcp">{host}/mcp</a>.</p>
 <p>Search Kettle Range and Outpost. <code>start_grocery_checkout</code> starts a cart the shopper pays for on the store site. Kettle Range returns the store checkout link. Outpost returns one https link that opens the filled cart. This service does not take a card number or the Outpost password.</p>
 <p>OAuth with dynamic client registration is enabled on the hosted deployment. Claude and ChatGPT connectors should use OAuth.</p>
+<p><strong>Glama:</strong> the connector health check needs a signed-in token. After you
+<a href="https://glama.ai/mcp/connectors/io.github.AndrewVG23/grocery-mcp">claim the listing</a>,
+open <strong>Admin → Test Profile</strong> and complete OAuth once so Glama can run
+<code>initialize</code> / <code>tools/list</code> on <code>{host}/mcp</code>.</p>
 <p>Questions: <a href="mailto:{CONTACT}">{CONTACT}</a>.</p>""",
         )
         return HTMLResponse(body)
