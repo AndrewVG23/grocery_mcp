@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import pytest
-
 from grocery_mcp.models import (
     GroceryItem,
     HandoffRequest,
@@ -12,7 +10,11 @@ from grocery_mcp.models import (
     browser_cart_session,
 )
 from grocery_mcp.open_outpost_cart import plan_endpoint
-from grocery_mcp.outpost_checkout import load_outpost_cart, render_outpost_cart_page
+from grocery_mcp.outpost_checkout import (
+    load_outpost_cart,
+    load_outpost_session,
+    render_outpost_cart_page,
+)
 from grocery_mcp.providers.base import ProviderError, RetailerProvider
 from grocery_mcp.services.shopping_lists import ShoppingListService, normalize_items
 
@@ -176,6 +178,20 @@ class _OutpostProvider(StubProvider):
         matches[0].product_id = "INV-1000-8"
         return matches
 
+    async def start_filled_cart(self, location, lines):
+        return {
+            "grand_total": 6.98,
+            "line_count": len(lines),
+            "cookies": [
+                {
+                    "name": "token",
+                    "value": "guest-session",
+                    "domain": "shop.outpost.coop",
+                    "path": "/",
+                }
+            ],
+        }
+
 
 async def test_outpost_checkout_fills_the_shoppers_store_tab():
     service = ShoppingListService({RetailerId.OUTPOST: _OutpostProvider()})
@@ -186,25 +202,26 @@ async def test_outpost_checkout_fills_the_shoppers_store_tab():
             items=[GroceryItem(name="bananas", quantity=2)],
         )
     )
-    cart_id = checkout.checkout_url.rstrip("/").rsplit("/", 1)[-1]
+    cart_id = checkout.checkout_url.split("/outpost-cart/")[1].split("/")[0]
     plan = await load_outpost_cart(cart_id)
-    assert checkout.cart_prefilled is False
+    assert checkout.cart_prefilled is True
     assert checkout.requires_user_checkout is True
-    assert "/outpost-cart/" in checkout.checkout_url
+    assert checkout.checkout_url.endswith(f"/outpost-cart/{cart_id}/shop/s/1000-5/co")
+    assert "outpostcart://" not in checkout.checkout_url
     assert checkout.lines[0].product_name == "Matched bananas"
     assert checkout.total_text == "$6.98"
     assert plan["cart_api"] == "https://shop.outpost.coop/s/1000-5/api/cart"
+    assert "cookies" not in plan
     assert plan["items"] == [{"item": "INV-1000-8", "quantity": 2, "substitutable": True}]
-    assert "filled cart" in checkout.note
-    assert "Sign in" in checkout.note
-    assert "password" in checkout.note
+    assert "already filled" in checkout.note
+    session = await load_outpost_session(cart_id)
+    assert session["cookies"][0]["name"] == "token"
     page = render_outpost_cart_page(
         plan,
         f"https://example.test/outpost-cart/{cart_id}/plan.json",
         cart_id,
     )
     assert "× 2" in page
-    assert f"outpostcart://{cart_id}" in page
-    assert "Open the filled cart" in page
-    assert "Sign in" in page
+    assert "outpostcart://" not in page
+    assert "expired" in page
     assert plan_endpoint(f"outpostcart://{cart_id}").endswith(f"/outpost-cart/{cart_id}/plan.json")

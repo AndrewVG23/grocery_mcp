@@ -14,6 +14,7 @@ from grocery_mcp.database import (
     save_handoff,
     save_template,
 )
+from grocery_mcp.directory_pages import public_host
 from grocery_mcp.models import (
     CheckoutLine,
     GroceryCheckout,
@@ -27,8 +28,7 @@ from grocery_mcp.models import (
     TemplateRequest,
     browser_cart_session,
 )
-from grocery_mcp.directory_pages import public_host
-from grocery_mcp.outpost_checkout import save_outpost_cart
+from grocery_mcp.outpost_checkout import save_outpost_cart, save_outpost_session, shop_checkout_path
 from grocery_mcp.providers import KettleRangeProvider, OutpostProvider
 from grocery_mcp.providers.base import ProviderError, RetailerProvider
 
@@ -230,10 +230,15 @@ class ShoppingListService:
         cart_lines: list[dict],
         unmatched: list[str],
     ) -> GroceryCheckout:
-        """Save the items for a local browser window with the cart filled."""
+        """Fill an Outpost cart on the server and return one checkout link."""
         storefront = location.storefront_url
         if not storefront.endswith("/"):
             storefront += "/"
+        provider = self.providers.get(request.retailer)
+        start_cart = getattr(provider, "start_filled_cart", None)
+        if start_cart is None:
+            raise ProviderError("Outpost checkout is unavailable.")
+        filled = await start_cart(location, cart_lines)
         lines = [
             CheckoutLine(
                 requested_name=line["requested_name"],
@@ -243,11 +248,9 @@ class ShoppingListService:
             )
             for line in cart_lines
         ]
-        prices = [line["price"] for line in cart_lines]
         total_text = None
-        if all(price is not None for price in prices):
-            total = sum(price * line["quantity"] for price, line in zip(prices, cart_lines, strict=True))
-            total_text = f"${total:.2f}"
+        if filled.get("grand_total") is not None:
+            total_text = f"${float(filled['grand_total']):.2f}"
         cart_id = str(uuid4())
         await save_outpost_cart(
             cart_id,
@@ -269,20 +272,23 @@ class ShoppingListService:
                 "unmatched": unmatched,
             },
         )
+        await save_outpost_session(
+            cart_id,
+            {"storefront_url": storefront, "cookies": filled.get("cookies") or []},
+        )
         return GroceryCheckout(
             retailer=request.retailer,
             location=location,
-            checkout_url=f"{public_host()}/outpost-cart/{cart_id}",
+            checkout_url=f"{public_host()}{shop_checkout_path(cart_id, storefront)}",
             lines=lines,
             unmatched=unmatched,
             total_text=total_text,
-            cart_prefilled=False,
+            cart_prefilled=True,
             note=(
-                "Open checkout_url and choose Open the filled cart. Outpost opens "
-                "with these items already in the cart. Sign in on that window to put "
-                "the order on the shopper's Outpost account. This Mac remembers that "
-                "sign-in for the next cart. Pay on Outpost. This service does not "
-                "take a card number or the Outpost password."
+                "Open checkout_url. The Outpost cart is already filled with these "
+                "items. Pay on that page. Curbside adds its fee after a pickup time "
+                "is chosen. This service does not take a card number or the Outpost "
+                "password."
             ),
         )
 

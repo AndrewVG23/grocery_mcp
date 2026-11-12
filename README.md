@@ -9,15 +9,13 @@ returns reviewable product links. It starts with:
 - Outpost Natural Foods — Capitol Drive, State Street, Bay View, and Mequon
 
 `start_grocery_checkout` starts a cart the shopper pays for on the store site.
-Kettle Range returns the store checkout link. Outpost opens a browser window
-with the cart already filled. The shopper can sign in to Outpost in that
-window, and this Mac remembers the sign-in. This service does not take a
+Kettle Range returns the store checkout link. Outpost returns one https link
+that opens the cart this server already filled. This service does not take a
 card number or store retailer passwords.
 
-A Kettle Range checkout link opens that guest cart on the store site. Outpost
-checkout opens a local browser window with those items already in the cart.
-Sign in on that window to keep the order on an Outpost account. The shopper
-pays on Outpost.
+A Kettle Range checkout link opens that guest cart on the store site. An
+Outpost checkout link opens the filled guest cart. The shopper pays on that
+page.
 
 ## Connect
 

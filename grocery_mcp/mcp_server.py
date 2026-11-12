@@ -6,6 +6,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 from grocery_mcp.auth import build_http_auth
+from grocery_mcp.directory_pages import register_directory_pages
 from grocery_mcp.models import (
     GroceryItem,
     HandoffRequest,
@@ -14,7 +15,6 @@ from grocery_mcp.models import (
     browser_cart_session,
 )
 from grocery_mcp.providers.base import ProviderError
-from grocery_mcp.directory_pages import register_directory_pages
 from grocery_mcp.services.shopping_lists import service
 
 mcp = FastMCP(
@@ -22,9 +22,8 @@ mcp = FastMCP(
     instructions=(
         "Search Kettle Range and Outpost. To place an order, call start_grocery_checkout "
         "and give the shopper checkout_url. Kettle Range opens a filled cart on the store "
-        "site. Outpost opens a page whose button launches the store with the cart "
-        "already filled. The shopper can sign in to Outpost in that window. This "
-        "service does not see that password. Do not ask "
+        "site. Outpost returns one https link that opens the cart the server "
+        "already filled. Do not ask "
         "for a card number. Do not say the order is placed until the shopper finishes "
         "checkout on the retailer site. "
         "Always show unmatched items, prices, and availability. Never substitute a different "
@@ -113,9 +112,8 @@ async def start_grocery_checkout(
 ) -> dict[str, Any]:
     """Start a cart the shopper pays for on the retailer site.
 
-    Kettle Range returns the store checkout link. Outpost opens a browser window
-    with the cart already filled. The shopper can sign in to Outpost in that
-    window, and this Mac remembers the sign-in. This server does not take
+    Kettle Range returns the store checkout link. Outpost returns one https link
+    that opens the cart this server already filled. This server does not take
     a card number or the Outpost password. The order is placed only after the
     shopper checks out there.
 

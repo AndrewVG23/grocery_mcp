@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, JSONResponse
+from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
 from grocery_mcp.config import public_base_url
 from grocery_mcp.outpost_checkout import (
     load_outpost_cart,
+    load_outpost_session,
     plan_json,
     plan_url_for,
     render_outpost_cart_page,
+    shop_checkout_path,
 )
+from grocery_mcp.outpost_proxy import proxy_outpost
 
 DEFAULT_HOST = "https://grocery-mcp-production.up.railway.app"
 SERVER_VERSION = "0.1.1"
@@ -51,7 +54,7 @@ def register_directory_pages(mcp) -> None:
             "Grocery MCP",
             f"""<h1>Grocery MCP</h1>
 <p>Version {SERVER_VERSION}. Streamable HTTP at <a href="{host}/mcp">{host}/mcp</a>.</p>
-<p>Search Kettle Range and Outpost. <code>start_grocery_checkout</code> starts a cart the shopper pays for on the store site. Kettle Range returns the store checkout link. Outpost opens a browser window with the cart already filled. The shopper can sign in to Outpost in that window. This service does not take a card number or the Outpost password.</p>
+<p>Search Kettle Range and Outpost. <code>start_grocery_checkout</code> starts a cart the shopper pays for on the store site. Kettle Range returns the store checkout link. Outpost returns one https link that opens the filled cart. This service does not take a card number or the Outpost password.</p>
 <p>OAuth with dynamic client registration is enabled on the hosted deployment. Claude and ChatGPT connectors should use OAuth.</p>
 <p>Questions: <a href="mailto:{CONTACT}">{CONTACT}</a>.</p>""",
         )
@@ -62,7 +65,7 @@ def register_directory_pages(mcp) -> None:
         body = _page(
             "Privacy",
             f"""<h1>Privacy</h1>
-<p>Grocery MCP does not take card numbers or store retailer passwords. A Kettle Range checkout link is a guest session for that cart. An Outpost checkout opens a local browser window with the cart already filled. Signing in on that window stays on this Mac for the next cart. The shopper pays on the retailer site. Product names and prices come from each retailer's public storefront at request time. OAuth client registrations and Outpost cart plans may be stored when a database is configured.</p>
+<p>Grocery MCP does not take card numbers or store retailer passwords. A Kettle Range checkout link is a guest session for that cart. An Outpost checkout link is a guest cart the server already filled. The shopper pays on that page. Product names and prices come from each retailer's public storefront at request time. OAuth client registrations, Outpost cart plans, and the store session for an open checkout may be stored when a database is configured.</p>
 <p>Contact: <a href="mailto:{CONTACT}">{CONTACT}</a>.</p>""",
         )
         return HTMLResponse(body)
@@ -98,16 +101,28 @@ def register_directory_pages(mcp) -> None:
         )
 
     @mcp.custom_route("/outpost-cart/{cart_id}", methods=["GET"])
-    async def outpost_cart_page(request: Request) -> HTMLResponse:
-        plan = await load_outpost_cart(request.path_params["cart_id"])
+    async def outpost_cart_page(request: Request) -> HTMLResponse | RedirectResponse:
+        cart_id = request.path_params["cart_id"]
+        plan = await load_outpost_cart(cart_id)
         if plan is None:
             return HTMLResponse("<h1>Cart not found</h1>", status_code=404)
-        page = render_outpost_cart_page(
-            plan,
-            plan_url_for(host, request.path_params["cart_id"]),
+        if await load_outpost_session(cart_id) is None:
+            return HTMLResponse(
+                render_outpost_cart_page(plan, plan_url_for(host, cart_id), cart_id),
+                status_code=410,
+            )
+        return RedirectResponse(shop_checkout_path(cart_id, plan["storefront_url"]), status_code=307)
+
+    @mcp.custom_route(
+        "/outpost-cart/{cart_id}/shop/{path:path}",
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
+    )
+    async def outpost_cart_shop(request: Request) -> Response:
+        return await proxy_outpost(
             request.path_params["cart_id"],
+            request.path_params["path"],
+            request,
         )
-        return HTMLResponse(page)
 
     @mcp.custom_route("/outpost-cart/{cart_id}/plan.json", methods=["GET"])
     async def outpost_cart_plan(request: Request) -> JSONResponse:

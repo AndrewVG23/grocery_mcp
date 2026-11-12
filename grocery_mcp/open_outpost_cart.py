@@ -51,7 +51,7 @@ async (plan) => {
 
 def plan_endpoint(argument: str) -> str:
     value = argument.strip()
-    if value.startswith("http://") or value.startswith("https://"):
+    if value.startswith(("http://", "https://")):
         if value.endswith("/plan.json"):
             return value
         return value.rstrip("/") + "/plan.json"

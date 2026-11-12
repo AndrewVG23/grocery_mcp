@@ -158,3 +158,74 @@ class OutpostProvider(RetailerProvider):
             )
             for product in ranked
         ]
+
+    async def start_filled_cart(
+        self,
+        location: RetailerLocation,
+        lines: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Create a guest cart on Outpost and add the matched items.
+
+        The returned cookies are the store session. Callers must keep them out of
+        public plan JSON and logs.
+        """
+        storefront = location.storefront_url
+        if not storefront.endswith("/"):
+            storefront += "/"
+        cart_api = f"{storefront}api/cart"
+        items = []
+        for line in lines:
+            quantity = float(line["quantity"])
+            items.append(
+                {
+                    "item": line["store_product_id"],
+                    "quantity": int(quantity) if quantity.is_integer() else quantity,
+                    "substitutable": True,
+                }
+            )
+        accept = "application/vnd.ecrs.webcart-2.0+json, application/json"
+        try:
+            async with httpx.AsyncClient(
+                timeout=30,
+                follow_redirects=True,
+                headers={"User-Agent": "Mozilla/5.0"},
+            ) as client:
+                await client.get(storefront)
+                cart_response = await client.get(cart_api, headers={"Accept": accept})
+                cart_response.raise_for_status()
+                cart = cart_response.json()
+                saved_response = await client.post(
+                    cart_api,
+                    headers={"Accept": accept, "Content-Type": "application/json"},
+                    json={
+                        "transaction": cart.get("transaction"),
+                        "instructions": cart.get("instructions") or "",
+                        "items": items,
+                        "giftCardItems": [],
+                        "inStore": cart.get("inStore"),
+                        "checkout": cart.get("checkout"),
+                        "orderTypeId": cart.get("orderType"),
+                        "deliveryTotal": cart.get("deliveryTotal"),
+                        "lastSyncTime": cart.get("lastSyncTime"),
+                    },
+                )
+                saved_response.raise_for_status()
+                saved = saved_response.json()
+                cookies = [
+                    {
+                        "name": cookie.name,
+                        "value": cookie.value,
+                        "domain": cookie.domain or "shop.outpost.coop",
+                        "path": cookie.path or "/",
+                    }
+                    for cookie in client.cookies.jar
+                ]
+        except httpx.HTTPError as exc:
+            raise ProviderError(f"Outpost cart request failed: {exc}") from exc
+        if not saved.get("lineItems"):
+            raise ProviderError(saved.get("message") or "Outpost did not add these items.")
+        return {
+            "grand_total": saved.get("grandTotal"),
+            "line_count": len(saved["lineItems"]),
+            "cookies": cookies,
+        }
