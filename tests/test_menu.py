@@ -10,6 +10,20 @@ from grocery_mcp.menus.schema import MenuError, parse_cart, parse_menu, visible_
 from grocery_mcp.menus.shopping_list import build_shopping_list
 from grocery_mcp.menus.store import render_menu_file, shopping_list_for
 
+
+def _link_is_active(pdf: bytes, url: str) -> bool:
+    page = PdfReader(BytesIO(pdf)).pages[0]
+    for annot in page.get("/Annots") or []:
+        obj = annot.get_object()
+        action = obj.get("/A") or {}
+        if str(action.get("/URI") or "") != url:
+            continue
+        rect = [float(value) for value in obj["/Rect"]]
+        if rect[2] - rect[0] > 200 and rect[3] - rect[1] >= 24:
+            return True
+    return False
+
+
 CART = {
     "url": "https://shop.example/cart/filled",
     "retailer": "Outpost",
@@ -38,7 +52,12 @@ def _day(label, *meals):
 
 def test_visible_cart_link_keeps_the_path_and_hides_the_query():
     url = "https://shop.example/checkout?ex_access_token=secret"
-    assert visible_cart_link(url) == "shop.example/checkout"
+    assert visible_cart_link(url) == "https://shop.example/checkout"
+    live = (
+        "https://grocery-mcp-production.up.railway.app/outpost-cart/"
+        "019adc2b-eacb-4074-99f0-ee69b34758a6/shop/s/1000-5/co"
+    )
+    assert visible_cart_link(live) == live
 
 
 def test_lengths_used_by_the_layout_are_at_the_limit():
@@ -116,25 +135,31 @@ async def test_menu_pdf_pages_fit_and_the_cart_link_is_the_qr_target():
     three = parse_menu(_sample(3))
     week = parse_menu(_sample(7))
     cart = parse_cart(CART)
+    live = (
+        "https://grocery-mcp-production.up.railway.app/outpost-cart/"
+        "019adc2b-eacb-4074-99f0-ee69b34758a6/shop/s/1000-5/co"
+    )
+    live_cart = parse_cart({"url": live, "retailer": "Outpost", "item_count": 26})
     one_html = render_menu_html(one, cart, "letter")
-    three_html = render_menu_html(three, cart, "letter")
+    three_html = render_menu_html(three, live_cart, "letter")
     week_html = render_menu_html(week, None, "letter")
 
     one_pdf, one_pages, one_clip = await paint_menu(one_html)
-    _, three_pages, three_clip = await paint_menu(three_html)
+    three_pdf, three_pages, three_clip = await paint_menu(three_html)
     _, week_pages, week_clip = await paint_menu(week_html)
 
     assert one_pages == 1 and not one_clip
     assert three_pages == 1 and not three_clip
     assert week_pages == 3 and not week_clip
     assert one_pdf.startswith(b"%PDF")
-    assert 'href="https://shop.example/cart/filled"' in three_html
-    assert qr_svg(CART["url"]) in three_html
+    assert f'href="{live}"' in three_html
+    assert qr_svg(live) in three_html
     assert "Open the filled cart" in three_html
-    assert visible_cart_link(CART["url"]) in three_html
+    assert live in three_html
+    assert "…" not in three_html
     assert 'class="shop"' not in week_html
-    link = PdfReader(BytesIO(one_pdf)).pages[0]["/Annots"][0].get_object()
-    assert link["/A"]["/URI"] == CART["url"]
+    assert _link_is_active(three_pdf, live)
+    assert _link_is_active(one_pdf, CART["url"])
 
 
 @pytest.mark.asyncio

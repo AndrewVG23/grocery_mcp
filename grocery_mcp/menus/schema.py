@@ -140,12 +140,12 @@ def resolve_checkout(payload: object | None, checkout_url: str | None = None) ->
 
 
 def visible_cart_link(url: str) -> str:
-    """Host and path only, so a token in the query string is not printed on the page."""
+    """Full scheme, host, and path. Query tokens stay off the printed page."""
     parsed = urlparse(url)
-    visible = f"{parsed.netloc}{parsed.path}".rstrip("/")
-    if len(visible) <= 78:
-        return visible or url
-    return f"{visible[:40]}…{visible[-28:]}"
+    if not parsed.netloc:
+        return url
+    scheme = parsed.scheme or "https"
+    return f"{scheme}://{parsed.netloc}{parsed.path.rstrip('/')}"
 
 
 def parse_paper(paper: str) -> str:

@@ -7,38 +7,41 @@
 __FONT_CSS__
 @page { __PAGE_SIZE__ margin: 0; }
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; background: #f4efe6; color: #1c1915; }
+html, body { margin: 0; padding: 0; background: #f7f3ec; color: #1c1714; }
 .sheet {
   __SHEET_SIZE__
-  padding: 0.36in 0.4in 0.72in;
+  padding: 0.42in 0.48in 0.86in;
   display: flex;
   flex-direction: column;
   break-after: page;
   page-break-after: always;
   position: relative;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 100% 0, rgba(196, 122, 44, 0.16), transparent 28%),
-    #f4efe6;
+  background: #f7f3ec;
 }
 .sheet:last-child { break-after: auto; page-break-after: auto; }
-header { margin-bottom: 0.14in; }
+header {
+  margin-bottom: 0.18in;
+  padding-bottom: 0.1in;
+  border-bottom: 1px solid #1c1714;
+}
 h1 {
   margin: 0;
   font-family: Fraunces, Georgia, serif;
-  font-weight: 700;
-  font-size: 28px;
-  line-height: 1.05;
+  font-weight: 500;
+  font-size: 30px;
+  line-height: 1.02;
   letter-spacing: -0.03em;
   overflow-wrap: anywhere;
 }
 h2 { overflow-wrap: anywhere; }
 .subtitle {
-  margin: 0.04in 0 0;
+  margin: 0.05in 0 0;
   font-family: "DM Sans", sans-serif;
-  font-size: 12px;
-  line-height: 1.3;
-  color: #5c5348;
+  font-size: 11px;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  color: #5e564e;
 }
 .columns {
   flex: 1;
@@ -50,16 +53,15 @@ h2 { overflow-wrap: anywhere; }
 .day {
   min-width: 0;
   min-height: 0;
-  border-top: 2px solid #1c1915;
-  padding-top: 0.08in;
 }
-.day-empty { border-top-color: transparent; }
 .day h2 {
-  margin: 0 0 0.08in;
+  margin: 0 0 0.1in;
+  padding-bottom: 0.05in;
+  border-bottom: 1px solid #cfc6ba;
   font-family: "DM Sans", sans-serif;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
 }
 .meal { margin: 0 0 0.1in; }
@@ -71,58 +73,74 @@ h2 { overflow-wrap: anywhere; }
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #9a4e12;
+  color: #6e3b24;
 }
 .name {
-  margin: 0.02in 0 0;
+  margin: 0.03in 0 0;
   font-family: Fraunces, Georgia, serif;
   font-weight: 500;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.15;
   overflow-wrap: anywhere;
 }
 .desc {
-  margin: 0.03in 0 0;
+  margin: 0.04in 0 0;
   font-family: "DM Sans", sans-serif;
   font-size: 11px;
-  line-height: 1.3;
-  color: #3d3832;
+  line-height: 1.35;
+  color: #3f3832;
   overflow-wrap: anywhere;
 }
 .shop {
   position: absolute;
-  left: 0.4in;
-  right: 0.4in;
-  bottom: 0.14in;
-  height: 0.48in;
+  left: 0.48in;
+  right: 0.48in;
+  bottom: 0.2in;
+  height: 0.52in;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: 0.2in;
-  border-top: 1px solid #d9d0c3;
+  gap: 0.18in;
+  border-top: 1px solid #1c1714;
+  padding-top: 0.08in;
 }
-.shop a {
-  font-family: "DM Sans", sans-serif;
-  font-size: 12px;
-  font-weight: 600;
-  color: #1c1915;
-  text-decoration: none;
+.shop a.cart-url {
+  flex: 1;
   min-width: 0;
+  color: inherit;
+  text-decoration: none;
 }
 .shop .open {
   display: block;
-  color: #9a4e12;
-  text-decoration: underline;
+  font-family: Fraunces, Georgia, serif;
+  font-weight: 500;
+  font-size: 13px;
+  line-height: 1.1;
+  color: #1c1714;
 }
-.shop small {
+.shop .address {
   display: block;
-  font-size: 9px;
-  font-weight: 400;
-  letter-spacing: 0.04em;
-  color: #5c5348;
+  margin-top: 0.04in;
+  font-family: "DM Sans", sans-serif;
+  font-size: 8px;
+  line-height: 1.25;
+  color: #6e3b24;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
 }
-.qr { width: 0.38in; height: 0.38in; }
-.qr svg { display: block; width: 0.38in; height: 0.38in; }
+.shop .meta {
+  margin: 0 0 0.02in;
+  font-family: "DM Sans", sans-serif;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #6d645b;
+  white-space: nowrap;
+}
+.qr { width: 0.4in; height: 0.4in; flex: none; }
+.qr svg { display: block; width: 0.4in; height: 0.4in; }
 </style>
 </head>
 <body>

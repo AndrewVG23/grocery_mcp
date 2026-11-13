@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import base64
 import os
-from html import escape
+import re
+from html import escape, unescape
 from io import BytesIO
 from pathlib import Path
 
 import segno
-from pypdf import PdfReader
+from pypdf import PdfReader, PdfWriter
+from pypdf.annotations import Link
 
 from grocery_mcp.menus.schema import Menu, MenuCart, visible_cart_link
 
@@ -81,6 +83,9 @@ async def paint_menu(html: str) -> tuple[bytes, int, list[str]]:
         )
         pdf = await page.pdf(print_background=True, prefer_css_page_size=True)
         await browser.close()
+    href = _cart_href(html)
+    if href:
+        pdf = _stamp_cart_link(pdf, href)
     pages = len(PdfReader(BytesIO(pdf)).pages)
     return pdf, pages, list(overflows)
 
@@ -117,21 +122,50 @@ def _footer(cart: MenuCart | None) -> str:
     if cart is None:
         return ""
     href = escape(cart.url, quote=True)
-    details = [visible_cart_link(cart.url)]
+    meta = []
     if cart.item_count:
         label = "item" if cart.item_count == 1 else "items"
-        details.append(f"{cart.item_count} {label}")
+        meta.append(f"{cart.item_count} {label}")
     if cart.retailer and cart.retailer != "Cart":
-        details.append(cart.retailer)
+        meta.append(cart.retailer)
+    aside = f'<p class="meta">{escape(" · ".join(meta))}</p>' if meta else ""
     return (
         '<footer class="shop">'
-        f'<a href="{href}">'
+        f'<a class="cart-url" href="{href}">'
         '<span class="open">Open the filled cart</span>'
-        f"<small>{escape(' · '.join(details))}</small>"
+        f'<span class="address">{escape(visible_cart_link(cart.url))}</span>'
         "</a>"
+        f"{aside}"
         f'<span class="qr">{qr_svg(cart.url)}</span>'
         "</footer>"
     )
+
+
+def _cart_href(html: str) -> str | None:
+    match = re.search(r'<a class="cart-url" href="([^"]*)"', html)
+    if match is None:
+        return None
+    return unescape(match.group(1))
+
+
+def _stamp_cart_link(pdf: bytes, url: str) -> bytes:
+    """Cover the printed address with a URI annotation. The hit area is the link."""
+    reader = PdfReader(BytesIO(pdf))
+    writer = PdfWriter()
+    writer.append(reader)
+    for index, page in enumerate(writer.pages):
+        width = float(page.mediabox.width)
+        left = 0.48 * 72
+        bottom = 0.20 * 72
+        right = width - 1.05 * 72
+        top = bottom + 0.46 * 72
+        writer.add_annotation(
+            page_number=index,
+            annotation=Link(rect=(left, bottom, right, top), url=url, border=(0, 0, 0)),
+        )
+    output = BytesIO()
+    writer.write(output)
+    return output.getvalue()
 
 
 def _font_css() -> str:
