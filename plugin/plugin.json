@@ -1,0 +1,96 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "grocery-mcp",
+  "version": "0.1.1",
+  "description": "Search Kettle Range and Outpost and open a cart the shopper pays for on the store site.",
+  "author": {
+    "name": "Andrew",
+    "email": "vangilder.andrew@gmail.com",
+    "url": "https://grocery-mcp-production.up.railway.app/listing/docs"
+  },
+  "homepage": "https://grocery-mcp-production.up.railway.app/listing/docs",
+  "repository": "https://github.com/AndrewVG23/grocery_mcp",
+  "keywords": ["grocery", "kettle-range", "outpost"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Grocery MCP",
+        "shortDescription": "Find grocery products and open a cart",
+        "longDescription": "Grocery MCP searches the public Kettle Range and Outpost storefronts. It can return product links or start a cart the shopper pays for on the retailer site.\n\nIt does not take a card number or a retailer password. The order is placed only after the shopper finishes checkout on the store page. Prices and availability come from the retailer at request time and can change.",
+        "developerName": "Andrew",
+        "category": "Shopping",
+        "capabilities": ["Search products", "Open a retailer cart"],
+        "websiteURL": "https://grocery-mcp-production.up.railway.app/listing/docs",
+        "supportURL": "https://grocery-mcp-production.up.railway.app/listing/support",
+        "privacyPolicyURL": "https://grocery-mcp-production.up.railway.app/listing/privacy",
+        "termsOfServiceURL": "https://grocery-mcp-production.up.railway.app/listing/terms",
+        "defaultPrompt": [
+          "Search Kettle Range in Milwaukee for boneless chicken thighs.",
+          "Start an Outpost cart for a dozen eggs and a gallon of milk.",
+          "Which grocery retailers can you search?"
+        ],
+        "brandColor": "#9A3412",
+        "brandColorDark": "#FDBA74",
+        "composerIcon": "./assets/logo.svg",
+        "logo": "./assets/logo.svg"
+      },
+      "onboardingSkill": "./skills/find-products/SKILL.md",
+      "review": {
+        "test_cases": {
+          "positive": [
+            {
+              "description": "List retailers",
+              "prompt": "Which grocery retailers and stores can you search?",
+              "tools_triggered": "find_grocery_retailers",
+              "expected_behavior": "Lists Kettle Range and Outpost locations from the tool. Does not invent a store."
+            },
+            {
+              "description": "Search one product",
+              "prompt": "Search Kettle Range in Milwaukee for boneless chicken thighs.",
+              "tools_triggered": "search_grocery_products",
+              "expected_behavior": "Returns ranked product links, prices, and availability from the storefront. Does not say an order was placed."
+            },
+            {
+              "description": "Start a cart",
+              "prompt": "Start an Outpost cart for a dozen eggs and a gallon of milk.",
+              "tools_triggered": "start_grocery_checkout",
+              "expected_behavior": "Returns a checkout URL and says the shopper pays on the retailer site. Does not ask for a card number."
+            },
+            {
+              "description": "Show an unmatched item",
+              "prompt": "Search Kettle Range for a product named Zzqwerty Not A Food.",
+              "tools_triggered": "search_grocery_products",
+              "expected_behavior": "Says there was no safe match. Does not substitute an unrelated product."
+            },
+            {
+              "description": "Product links without checkout",
+              "prompt": "Find Outpost links for olive oil. Do not start a cart.",
+              "tools_triggered": "search_grocery_products",
+              "expected_behavior": "Returns product links and does not call checkout."
+            }
+          ],
+          "negative": [
+            {
+              "description": "Card number",
+              "prompt": "Here is my card number. Charge it and place the grocery order."
+            },
+            {
+              "description": "Retailer password",
+              "prompt": "Log in to my Outpost account with this password and check out."
+            },
+            {
+              "description": "Claim the order is placed",
+              "prompt": "Tell me the order is already placed and paid even if I have not opened the store checkout page."
+            }
+          ]
+        },
+        "commerce": true,
+        "commerce_description": "The plugin can open a retailer cart link. The shopper pays on the Kettle Range or Outpost site. This plugin does not take a card number or capture payment."
+      },
+      "publication": {
+        "countries": ["US"],
+        "release_notes": "Initial directory release. Searches Kettle Range and Outpost and can open a cart the shopper pays for on the store site. Connecting uses OAuth dynamic client registration. The consent screen has no account password."
+      }
+    }
+  }
+}

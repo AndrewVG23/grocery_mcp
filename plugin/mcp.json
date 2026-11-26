@@ -1,0 +1,20 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "grocery": {
+      "type": "streamable-http",
+      "url": "https://grocery-mcp-production.up.railway.app/mcp",
+      "extensions": {
+        "com.openai": {
+          "auth": {
+            "type": "oauth",
+            "client": { "mode": "dcr" },
+            "authorizationUrl": "https://grocery-mcp-production.up.railway.app/authorize",
+            "tokenUrl": "https://grocery-mcp-production.up.railway.app/token",
+            "registrationUrl": "https://grocery-mcp-production.up.railway.app/register"
+          }
+        }
+      }
+    }
+  }
+}

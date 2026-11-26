@@ -64,6 +64,27 @@ open <strong>Admin → Test Profile</strong> and complete OAuth once so Glama ca
         )
         return HTMLResponse(body)
 
+    @mcp.custom_route("/listing/support", methods=["GET"])
+    async def listing_support(_: Request) -> HTMLResponse:
+        body = _page(
+            "Support",
+            f"""<h1>Support</h1>
+<p>Email <a href="mailto:{CONTACT}">{CONTACT}</a>.</p>
+<p>Include the retailer and the product you searched for. This service does not take a card number and cannot refund a store order. Documentation: <a href="{host}/listing/docs">{host}/listing/docs</a>.</p>""",
+        )
+        return HTMLResponse(body)
+
+    @mcp.custom_route("/listing/terms", methods=["GET"])
+    async def listing_terms(_: Request) -> HTMLResponse:
+        body = _page(
+            "Terms",
+            f"""<h1>Terms</h1>
+<p>Grocery MCP searches public Kettle Range and Outpost storefronts and can start a cart the shopper pays for on the retailer site. Product names, prices, and availability come from those storefronts at request time and can change.</p>
+<p>This service does not take a card number, store a retailer password, or place the order. The order is placed only after the shopper finishes checkout on the retailer site.</p>
+<p>The service is provided as-is, without a warranty of accuracy. Questions: <a href="mailto:{CONTACT}">{CONTACT}</a>.</p>""",
+        )
+        return HTMLResponse(body)
+
     @mcp.custom_route("/listing/privacy", methods=["GET"])
     async def listing_privacy(_: Request) -> HTMLResponse:
         body = _page(
